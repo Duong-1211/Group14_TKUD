@@ -99,12 +99,18 @@ class WindowAutoencoder(nn.Module):
         self.encoder = nn.Sequential(
             nn.Linear(window_size, 128),
             nn.ReLU(),
+            nn.BatchNorm1d(128),
+            nn.Dropout(0.1),
             nn.Linear(128, latent_dim),
             nn.ReLU(),
+            nn.BatchNorm1d(latent_dim),
+            nn.Dropout(0.1),
         )
         self.decoder = nn.Sequential(
             nn.Linear(latent_dim, 128),
             nn.ReLU(),
+            nn.BatchNorm1d(128),
+            nn.Dropout(0.1),
             nn.Linear(128, window_size),
         )
 
