@@ -59,6 +59,40 @@ def window_training_mask(point_mask: pd.Series | np.ndarray, end_indices: np.nda
     return np.asarray(keep, dtype=bool)
 
 
+def aggregate_window_scores_to_points(
+    scores: np.ndarray,
+    end_indices: np.ndarray,
+    *,
+    series_length: int,
+    window_size: int,
+    aggregation: str = "max",
+) -> np.ndarray:
+    """Project window scores back to every point covered by each window."""
+    scores = np.asarray(scores, dtype=float)
+    end_indices = np.asarray(end_indices, dtype=np.int64)
+    if len(scores) != len(end_indices):
+        raise ValueError("scores and end_indices must have the same length")
+    if aggregation not in {"max", "mean"}:
+        raise ValueError("aggregation must be 'max' or 'mean'")
+
+    if aggregation == "max":
+        point_scores = np.zeros(series_length, dtype=float)
+        for score, end in zip(scores, end_indices):
+            start = max(0, int(end) - window_size + 1)
+            point_scores[start : int(end) + 1] = np.maximum(point_scores[start : int(end) + 1], score)
+        return point_scores
+
+    point_scores = np.zeros(series_length, dtype=float)
+    counts = np.zeros(series_length, dtype=float)
+    for score, end in zip(scores, end_indices):
+        start = max(0, int(end) - window_size + 1)
+        point_scores[start : int(end) + 1] += score
+        counts[start : int(end) + 1] += 1.0
+    covered = counts > 0
+    point_scores[covered] = point_scores[covered] / counts[covered]
+    return point_scores
+
+
 class WindowAutoencoder(nn.Module):
     def __init__(self, window_size: int = 288, latent_dim: int = 32):
         super().__init__()
@@ -139,14 +173,21 @@ def detect_autoencoder(
     *,
     window_size: int = 288,
     stride: int = 1,
+    score_aggregation: str = "max",
 ) -> pd.DataFrame:
     values = scaler.transform(df["value"].to_numpy(dtype=np.float32))
     windows, end_indices = make_windows(values, window_size, stride)
     scores = score_autoencoder(model, windows)
+    point_scores = aggregate_window_scores_to_points(
+        scores,
+        end_indices,
+        series_length=len(df),
+        window_size=window_size,
+        aggregation=score_aggregation,
+    )
 
     out = df.loc[:, ["timestamp", "value"]].copy()
-    out["score"] = 0.0
-    out.loc[end_indices, "score"] = scores
+    out["score"] = point_scores
     out["threshold"] = threshold
     out["is_anomaly_pred"] = out["score"] > threshold
     return out
@@ -271,14 +312,21 @@ def detect_anomaly_transformer(
     *,
     window_size: int = 288,
     stride: int = 1,
+    score_aggregation: str = "max",
 ) -> pd.DataFrame:
     values = scaler.transform(df["value"].to_numpy(dtype=np.float32))
     windows, end_indices = make_windows(values, window_size, stride)
     scores = score_anomaly_transformer(model, windows)
+    point_scores = aggregate_window_scores_to_points(
+        scores,
+        end_indices,
+        series_length=len(df),
+        window_size=window_size,
+        aggregation=score_aggregation,
+    )
 
     out = df.loc[:, ["timestamp", "value"]].copy()
-    out["score"] = 0.0
-    out.loc[end_indices, "score"] = scores
+    out["score"] = point_scores
     out["threshold"] = threshold
     out["is_anomaly_pred"] = out["score"] > threshold
     return out

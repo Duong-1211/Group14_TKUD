@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE settings
+.vscode/
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Model weights / checkpoints / serialized files
+*.pth
+*.pt
+*.pkl
+*.pb
+*.onnx
+*.h5
+*.ckpt
+*.weights
+**/models/*.pkl
+**/models/*.pth
+
+# Logs and results
+result/
+results/
+runs/
+logs/
+
+#documents
+docs/

@@ -125,11 +125,50 @@ def evaluate_detector(
     return metrics
 
 
+def apply_threshold(prediction_df: pd.DataFrame, *, threshold: float) -> pd.DataFrame:
+    """Return a prediction frame with boolean predictions from one threshold."""
+    if "score" not in prediction_df.columns:
+        raise ValueError("prediction_df must contain a 'score' column")
+
+    out = prediction_df.copy()
+    out["threshold"] = float(threshold)
+    out["is_anomaly_pred"] = out["score"].astype(float).fillna(0.0) > float(threshold)
+    return out
+
+
+def sweep_thresholds(
+    labeled_df: pd.DataFrame,
+    prediction_df: pd.DataFrame,
+    windows: list[tuple[pd.Timestamp, pd.Timestamp]],
+    *,
+    name: str,
+    thresholds: list[float] | np.ndarray | None = None,
+    quantiles: list[float] | np.ndarray | None = None,
+) -> pd.DataFrame:
+    """Evaluate one detector over explicit thresholds or score quantiles."""
+    if thresholds is None:
+        score_arr = prediction_df["score"].astype(float).fillna(0.0).to_numpy()
+        quantiles = np.asarray([0.95, 0.975, 0.98, 0.99, 0.995] if quantiles is None else quantiles, dtype=float)
+        if ((quantiles < 0.0) | (quantiles > 1.0)).any():
+            raise ValueError("quantiles must be between 0 and 1")
+        thresholds = np.unique(np.quantile(score_arr, quantiles))
+
+    rows = []
+    for threshold in thresholds:
+        thresholded = apply_threshold(prediction_df, threshold=float(threshold))
+        metrics = evaluate_detector(labeled_df, thresholded, windows, name=name)
+        metrics["threshold"] = float(threshold)
+        rows.append(metrics)
+
+    return pd.DataFrame(rows)
+
+
 def compare_detectors(rows: list[dict[str, float | str]]) -> pd.DataFrame:
     """Return a sorted comparison table."""
     table = pd.DataFrame(rows)
     order = [
         "method",
+        "threshold",
         "precision",
         "recall",
         "f1",
