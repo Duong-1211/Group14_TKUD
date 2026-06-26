@@ -6,9 +6,9 @@ from pathlib import Path
 import pandas as pd
 
 
-from src.config import PATHS
-DEFAULT_DATA_PATH = PATHS["machine_temperature_system_failure"] / "data.csv"
-DEFAULT_LABEL_PATH = PATHS["machine_temperature_system_failure"] / "labels.json"
+from src.config import DEFAULT_PATH
+DEFAULT_DATA_PATH = DEFAULT_PATH / "data.csv"
+DEFAULT_LABEL_PATH = DEFAULT_PATH / "labels.json"
 
 def load_series(path: str | Path = DEFAULT_DATA_PATH, *, duplicate_policy: str = "mean") -> pd.DataFrame:
     """Load the machine-temperature time series.
