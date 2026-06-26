@@ -9,18 +9,36 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.config import DL_WINDOW, DL_STRIDE, AE_EPOCHS, AT_EPOCHS, MODEL_NAMES
+from src.config import DATA_PATH, DEFAULT_PATH, DL_WINDOW, DL_STRIDE, AE_EPOCHS, AT_EPOCHS, MODEL_NAMES
 from src.data import load_labeled_series, load_labels, make_train_mask
 from src.evaluation import compare_detectors, evaluate_detector, sweep_thresholds
 from src.statistical import rolling_iqr_detector, rolling_mad_detector, stl_detector
 from src.deep_learning import detect_anomaly_transformer, detect_autoencoder, train_anomaly_transformer, train_autoencoder
 
+
+DATA_ROOT = Path(DATA_PATH)
+
+
+def available_datasets() -> list[str]:
+    return sorted(
+        path.name
+        for path in DATA_ROOT.iterdir()
+        if path.is_dir() and (path / "data.csv").is_file() and (path / "labels.json").is_file()
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser("Run statistical anomaly detection demo")
     parser.add_argument(
+        "--dataset",
+        default=DEFAULT_PATH.name,
+        choices=available_datasets(),
+        help="Dataset folder under data/ to evaluate.",
+    )
+    parser.add_argument(
         "--model",
         default="All",
-        choices = MODEL_NAMES,
+        choices=(*MODEL_NAMES, "All"),
     )
     parser.add_argument(
         "--AEepochs",
@@ -38,8 +56,10 @@ def parse_args():
 
 def main() -> None:
     args = parse_args()
-    df = load_labeled_series()
-    windows = load_labels()["windows"]
+    dataset_path = DATA_ROOT / args.dataset
+    print(f"Using dataset: {args.dataset}")
+    df = load_labeled_series(dataset_path / "data.csv", dataset_path / "labels.json")
+    windows = load_labels(dataset_path / "labels.json")["windows"]
     if args.model == "MAD":
         predictions = {"MAD": rolling_mad_detector(df)}
     elif args.model == "IQR":
